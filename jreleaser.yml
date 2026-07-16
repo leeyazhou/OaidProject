@@ -1,0 +1,26 @@
+project:
+  name: OaidProject
+  version: 1.1.0
+  description: Android OAID SDK
+  website: https://github.com/leeyazhou/OaidProject
+  authors:
+    - leeyazhou
+  license: Apache-2.0
+  inceptionYear: 2024
+
+release:
+  github:
+    enabled: false
+
+signing:
+  active: ALWAYS
+  armored: true
+
+deploy:
+  maven:
+    mavenCentral:
+      sonatype:
+        active: ALWAYS
+        url: https://central.sonatype.com/api/v1/publisher
+        stagingRepositories:
+          - build/staging-deploy

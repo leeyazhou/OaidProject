@@ -1,51 +1,17 @@
 // Maven Central 发布脚本（适用于 Android Library 模块）
 // 使用方式：在各模块 build.gradle 中 `apply from: "$rootDir/maven_aar.gradle"`
-// 或通过 ext 块传参覆盖默认值
 //
-// 凭据来源：local.properties（已被 .gitignore 排除）
-//   centralPortalUsername=<Central Portal User Token name>
-//   centralPortalPassword=<Central Portal User Token password>
-//   signing.keyId=<GPG keyId 后8位>
-//   signing.password=<GPG 密钥密码>
-//   signing.secretKeyRingFile=<secring.gpg 绝对路径>
-//
-// 新 Central Portal (OSSRH 已于 2025-06-30 停用):
-//   Release: https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/
-//   Snapshot: https://central.sonatype.com/repository/maven-snapshots/
+// 此脚本只负责：构建 aar + sources jar + javadoc jar + pom，发布到本地 staging 目录。
+// 签名和上传到 Maven Central 由根项目的 JReleaser 插件接管：
+//   1. ./gradlew :myOaid:publishReleasePublicationToStagingRepository
+//   2. ./gradlew jreleaserDeploy
 
 apply plugin: 'maven-publish'
-apply plugin: 'signing'
 
-// ---- 从 local.properties 读取敏感凭据（不入版本控制） ----
-def loadSecretProps() {
-    def secrets = new Properties()
-    def f = rootProject.file('local.properties')
-    if (f.exists()) {
-        f.withInputStream { secrets.load(it) }
-    }
-    return secrets
-}
-def secrets = loadSecretProps()
-
-def centralUsername = secrets.getProperty('centralPortalUsername') ?: System.getenv('CENTRAL_PORTAL_USERNAME') ?: ''
-def centralPassword = secrets.getProperty('centralPortalPassword') ?: System.getenv('CENTRAL_PORTAL_PASSWORD') ?: ''
-
-// GPG 签名配置
-ext['signing.keyId'] = secrets.getProperty('signing.keyId') ?: System.getenv('SIGNING_KEY_ID') ?: ''
-ext['signing.password'] = secrets.getProperty('signing.password') ?: System.getenv('SIGNING_PASSWORD') ?: ''
-ext['signing.secretKeyRingFile'] = secrets.getProperty('signing.secretKeyRingFile') ?: System.getenv('SIGNING_SECRET_KEY_RING_FILE') ?: ''
-
-// ---- 发布坐标：利用 Gradle 属性解析优先级（ext > gradle.properties） ----
-// 模块可在 build.gradle 中设 ext.POM_ARTIFACT_ID / ext.VERSION_NAME 覆盖 gradle.properties 默认值
 def publishGroupId = POM_GROUP_ID
 def publishArtifactId = POM_ARTIFACT_ID
 def publishVersion = VERSION_NAME
 
-// ---- 新 Central Portal 端点 ----
-def releaseRepoUrl = 'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
-def snapshotRepoUrl = 'https://central.sonatype.com/repository/maven-snapshots/'
-
-// ---- sources jar ----
 task androidSourcesJar(type: Jar) {
     archiveClassifier.set('sources')
     if (project.plugins.findPlugin('com.android.library')) {
@@ -55,10 +21,8 @@ task androidSourcesJar(type: Jar) {
     }
 }
 
-// ---- javadoc jar（不依赖 dokka，避免额外插件） ----
 task androidJavadocJar(type: Jar) {
     archiveClassifier.set('javadoc')
-    // 空 javadoc jar：Central 要求存在该文件，内容可为空
 }
 
 afterEvaluate {
@@ -69,12 +33,9 @@ afterEvaluate {
                 artifactId publishArtifactId
                 version publishVersion
 
-                // aar 产物（手动指定路径，兼容所有 AGP 版本）
-                // artifact source 必须是 file 或 AbstractArchiveTask；用 provider 确保依赖 assembleRelease
                 artifact("$buildDir/outputs/aar/${POM_ARTIFACT}") {
                     builtBy tasks.matching { it.name == 'assembleRelease' }
                 }
-                // 显式补充 sources / javadoc
                 artifact androidSourcesJar
                 artifact androidJavadocJar
 
@@ -117,21 +78,9 @@ afterEvaluate {
         }
         repositories {
             maven {
-                name = 'CentralPortal'
-                url = publishVersion.endsWith('SNAPSHOT') ? snapshotRepoUrl : releaseRepoUrl
-                credentials {
-                    username centralUsername
-                    password centralPassword
-                }
+                name = 'Staging'
+                url = "${rootProject.buildDir}/staging-deploy"
             }
-        }
-    }
-
-    // 仅当签名密钥已配置时才签名，避免本地调试构建失败
-    def hasSigningKey = project.ext.has('signing.keyId') && project.ext['signing.keyId']?.trim()
-    if (hasSigningKey) {
-        signing {
-            sign publishing.publications.release
         }
     }
 }
