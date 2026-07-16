@@ -18,7 +18,7 @@
 
 ```
 	dependencies {
-	     implementation 'com.github.leeyazhou:oaid-sdk:1.0.25'
+	     implementation 'com.github.leeyazhou:oaid-sdk:1.1.0'
 	}
 ```
 
