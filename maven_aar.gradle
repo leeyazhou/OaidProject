@@ -1,81 +1,134 @@
+// Maven Central 发布脚本（适用于 Android Library 模块）
+// 使用方式：在各模块 build.gradle 中 `apply from: "$rootDir/maven_aar.gradle"`
+// 或通过 ext 块传参覆盖默认值
+//
+// 凭据来源：local.properties（已被 .gitignore 排除）
+//   centralPortalUsername=<Central Portal User Token name>
+//   centralPortalPassword=<Central Portal User Token password>
+//   signing.keyId=<GPG keyId 后8位>
+//   signing.password=<GPG 密钥密码>
+//   signing.secretKeyRingFile=<secring.gpg 绝对路径>
+//
+// 新 Central Portal (OSSRH 已于 2025-06-30 停用):
+//   Release: https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/
+//   Snapshot: https://central.sonatype.com/repository/maven-snapshots/
+
 apply plugin: 'maven-publish'
 apply plugin: 'signing'
-//发布AAR文件
-def getRepositoryUsername() {
-    return hasProperty('MAVEN_USERNAME') ? MAVEN_USERNAME : ""
-}
 
-def getRepositoryPassword() {
-    return hasProperty('MAVEN_PASSWORD') ? MAVEN_PASSWORD : ""
-}
-
-def getReleaseRepositoryUrl() {
-    return hasProperty('RELEASE_REPOSITORY_URL') ? RELEASE_REPOSITORY_URL
-            : "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
-}
-
-def getSnapshotRepositoryUrl() {
-    return hasProperty('SNAPSHOT_REPOSITORY_URL') ? SNAPSHOT_REPOSITORY_URL
-            : "https://s01.oss.sonatype.org/content/repositories/snapshots/"
-}
-
-publishing {
-    publications {
-        maven(MavenPublication) {
-            groupId POM_GROUP_ID
-            artifactId POM_ARTIFACT_ID
-            version VERSION_NAME
-            pom {
-                name = POM_NAME
-                description = POM_DESCRIPTION
-                url = POM_URL
-                inceptionYear = POM_INCEPTION_YEAR
-
-                scm {
-                    url = POM_SCM_URL
-                    connection = POM_SCM_CONNECTION
-                    developerConnection = POM_SCM_DEV_CONNECTION
-                }
-
-                licenses {
-                    license {
-                        name = POM_LICENCE_NAME
-                        url = POM_LICENCE_URL
-                        distribution = POM_LICENCE_DIST
-                        comments = POM_LICENCE_COMMENTS
-                    }
-                }
-
-                developers {
-                    developer {
-                        id = POM_DEVELOPER_ID
-                        name = POM_DEVELOPER_NAME
-                        email = POM_DEVELOPER_EMAIL
-                        url = POM_DEVELOPER_URL
-                    }
-                }
-
-                issueManagement {
-                    system = POM_ISSUE_MANAGEMENT_SYSTEM
-                    url = POM_ISSUE_MANAGEMENT_URL
-                }
-            }
-            // Tell maven to prepare the generated "*.jar/*.aar" file for publishing
-            artifact("$buildDir/${project.getName()}/build/outputs/aar/${POM_ARTIFACT}")
-        }
+// ---- 从 local.properties 读取敏感凭据（不入版本控制） ----
+def loadSecretProps() {
+    def secrets = new Properties()
+    def f = rootProject.file('local.properties')
+    if (f.exists()) {
+        f.withInputStream { secrets.load(it) }
     }
-    repositories {
-        maven {
-            // 指定要上传的maven仓库
-            url = VERSION_NAME.contains('SNAPSHOT') ? getSnapshotRepositoryUrl() : getReleaseRepositoryUrl()
-            //认证用户和密码
-            credentials {
-                username getRepositoryUsername()
-                password getRepositoryPassword()
-            }
-        }
+    return secrets
+}
+def secrets = loadSecretProps()
+
+def centralUsername = secrets.getProperty('centralPortalUsername') ?: System.getenv('CENTRAL_PORTAL_USERNAME') ?: ''
+def centralPassword = secrets.getProperty('centralPortalPassword') ?: System.getenv('CENTRAL_PORTAL_PASSWORD') ?: ''
+
+// GPG 签名配置
+ext['signing.keyId'] = secrets.getProperty('signing.keyId') ?: System.getenv('SIGNING_KEY_ID') ?: ''
+ext['signing.password'] = secrets.getProperty('signing.password') ?: System.getenv('SIGNING_PASSWORD') ?: ''
+ext['signing.secretKeyRingFile'] = secrets.getProperty('signing.secretKeyRingFile') ?: System.getenv('SIGNING_SECRET_KEY_RING_FILE') ?: ''
+
+// ---- 发布坐标：利用 Gradle 属性解析优先级（ext > gradle.properties） ----
+// 模块可在 build.gradle 中设 ext.POM_ARTIFACT_ID / ext.VERSION_NAME 覆盖 gradle.properties 默认值
+def publishGroupId = POM_GROUP_ID
+def publishArtifactId = POM_ARTIFACT_ID
+def publishVersion = VERSION_NAME
+
+// ---- 新 Central Portal 端点 ----
+def releaseRepoUrl = 'https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/'
+def snapshotRepoUrl = 'https://central.sonatype.com/repository/maven-snapshots/'
+
+// ---- sources jar ----
+task androidSourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    if (project.plugins.findPlugin('com.android.library')) {
+        from android.sourceSets.main.java.srcDirs
+    } else {
+        from sourceSets.main.java.srcDirs
     }
 }
-signing {
-    sign publishing.publications.maven
+
+// ---- javadoc jar（不依赖 dokka，避免额外插件） ----
+task androidJavadocJar(type: Jar) {
+    archiveClassifier.set('javadoc')
+    // 空 javadoc jar：Central 要求存在该文件，内容可为空
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                groupId publishGroupId
+                artifactId publishArtifactId
+                version publishVersion
+
+                // aar 产物（手动指定路径，兼容所有 AGP 版本）
+                artifact("$buildDir/outputs/aar/${POM_ARTIFACT}")
+                // 显式补充 sources / javadoc
+                artifact androidSourcesJar
+                artifact androidJavadocJar
+
+                pom {
+                    name = POM_NAME
+                    description = POM_DESCRIPTION
+                    url = POM_URL
+                    inceptionYear = POM_INCEPTION_YEAR
+
+                    scm {
+                        url = POM_SCM_URL
+                        connection = POM_SCM_CONNECTION
+                        developerConnection = POM_SCM_DEV_CONNECTION
+                    }
+
+                    licenses {
+                        license {
+                            name = POM_LICENCE_NAME
+                            url = POM_LICENCE_URL
+                            distribution = POM_LICENCE_DIST
+                            comments = POM_LICENCE_COMMENTS
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id = POM_DEVELOPER_ID?.trim()
+                            name = POM_DEVELOPER_NAME?.trim()
+                            email = POM_DEVELOPER_EMAIL?.trim()
+                            url = POM_DEVELOPER_URL?.trim() ?: ''
+                        }
+                    }
+
+                    issueManagement {
+                        system = POM_ISSUE_MANAGEMENT_SYSTEM
+                        url = POM_ISSUE_MANAGEMENT_URL
+                    }
+                }
+            }
+        }
+        repositories {
+            maven {
+                name = 'CentralPortal'
+                url = publishVersion.endsWith('SNAPSHOT') ? snapshotRepoUrl : releaseRepoUrl
+                credentials {
+                    username centralUsername
+                    password centralPassword
+                }
+            }
+        }
+    }
+
+    // 仅当签名密钥已配置时才签名，避免本地调试构建失败
+    def hasSigningKey = project.ext.has('signing.keyId') && project.ext['signing.keyId']?.trim()
+    if (hasSigningKey) {
+        signing {
+            sign publishing.publications.release
+        }
+    }
 }
