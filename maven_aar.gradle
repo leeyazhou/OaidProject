@@ -70,7 +70,10 @@ afterEvaluate {
                 version publishVersion
 
                 // aar 产物（手动指定路径，兼容所有 AGP 版本）
-                artifact("$buildDir/outputs/aar/${POM_ARTIFACT}")
+                // artifact source 必须是 file 或 AbstractArchiveTask；用 provider 确保依赖 assembleRelease
+                artifact("$buildDir/outputs/aar/${POM_ARTIFACT}") {
+                    builtBy tasks.matching { it.name == 'assembleRelease' }
+                }
                 // 显式补充 sources / javadoc
                 artifact androidSourcesJar
                 artifact androidJavadocJar

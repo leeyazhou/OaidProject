@@ -1,6 +1,6 @@
 apply plugin: 'com.android.library'
 
-def pomName = "oaid-source"
+def pomName = "myOaid"
 def oaidVersionName = "1.1.0"
 def outputName = pomName + "_" + oaidVersionName + ".aar"
 
