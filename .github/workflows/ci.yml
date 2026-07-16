@@ -114,12 +114,23 @@ jobs:
         run: chmod +x gradlew
 
       - name: Prepare GPG keys
+        env:
+          GPG_SECRET_KEY: ${{ secrets.SIGNING_SECRET_KEY }}
+          GPG_PUBLIC_KEY: ${{ secrets.SIGNING_PUBLIC_KEY }}
         run: |
+          if [ -z "$GPG_SECRET_KEY" ]; then
+            echo "::error::SIGNING_SECRET_KEY secret is empty or not configured"
+            exit 1
+          fi
+          if [ -z "$GPG_PUBLIC_KEY" ]; then
+            echo "::error::SIGNING_PUBLIC_KEY secret is empty or not configured"
+            exit 1
+          fi
           echo "JRELEASER_GPG_SECRET_KEY<<EOF" >> $GITHUB_ENV
-          echo "${{ secrets.SIGNING_SECRET_KEY_BASE64 }}" | base64 -d >> $GITHUB_ENV
+          echo "$GPG_SECRET_KEY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           echo "JRELEASER_GPG_PUBLIC_KEY<<EOF" >> $GITHUB_ENV
-          echo "${{ secrets.SIGNING_PUBLIC_KEY_BASE64 }}" | base64 -d >> $GITHUB_ENV
+          echo "$GPG_PUBLIC_KEY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Build AAR artifacts
