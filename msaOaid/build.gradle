@@ -1,29 +1,19 @@
-apply from: "maven_aar.gradle"
 apply plugin: 'com.android.library'
-
-apply plugin: 'com.kezong.fat-aar'
-
-// JitPack Maven
-apply plugin: 'com.github.dcendents.android-maven'
-// Your Group
-group = 'com.github.flayone'
 
 def advanceVersionName = "1.0.25"
 def advanceVersionCode = 1
 
-def aarName = "oaid_sdk_" + advanceVersionName
-
 android {
-    compileSdkVersion 29
-    buildToolsVersion "29.0.3"
+    namespace 'com.bun.miitmdid'
+    compileSdk 34
 
     defaultConfig {
-        minSdkVersion 14
-        targetSdkVersion 29
+        minSdk 16
+        targetSdk 34
         versionCode advanceVersionCode
         versionName advanceVersionName
 
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
     }
 
@@ -34,44 +24,36 @@ android {
         }
     }
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
     lintOptions {
         abortOnError false
     }
 }
 
-repositories {
-    flatDir {
-        dirs 'libs'
-    }
-}
-
-// If the value is changed to true, the dependencies of the remote dependency will also be embedded in the final aar.
-// the default value of transitive is false
-configurations.embed.transitive = true
-
-
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
+    // 原 fat-aar embed 已移除（fat-aar 不兼容 AGP 8）
+    // 改为 compileOnly 引用本地 aar，构建时可用但发布需通过 POM 声明依赖
+    compileOnly files('libs/oaid_sdk_1.0.25.aar')
+    compileOnly 'androidx.appcompat:appcompat:1.6.1'
 
-    compileOnly 'com.android.support:appcompat-v7:28.0.0'
-    testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'com.android.support.test:runner:1.0.2'
-    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
-
-    embed(name: aarName, ext: 'aar')
-
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
+
 android.libraryVariants.all { variant ->
     variant.outputs.all {
         outputFileName = 'oaid_' + advanceVersionName + '.aar'
     }
 }
-//publish {
-//    userOrg = 'jinghuashuiyue'//bintray.com用户名
-//    repoName = 'advsdk'
-//    groupId = 'com.advsdk'//jcenter上的路径
-//    artifactId = 'advance_oaid'//项目名称
-//    publishVersion = advanceVersionName //版本号
-//    desc = 'advanceSDK_oaid'//描述，不重要
-//    website = 'https://github.com/bayescom/advancesdk_android'//网站，不重要
-//}
+
+// --- Maven Central 发布 ---
+ext.POM_ARTIFACT_ID = 'oaid-sdk'
+ext.VERSION_NAME = advanceVersionName
+ext.POM_ARTIFACT = 'oaid_' + advanceVersionName + '.aar'
+apply from: "${rootDir}/maven_aar.gradle"
