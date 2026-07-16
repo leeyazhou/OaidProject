@@ -57,8 +57,8 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 
-    // msa SDK 方式获取
-    implementation 'io.github.flayone:oaid-sdk:1.0.25'
+    // msa SDK 方式获取（JitPack）
+    implementation 'com.github.leeyazhou.OaidProject:msaOaid:1.0.25'
 
     implementation project(path: ':myOaid')
 }

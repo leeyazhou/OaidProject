@@ -21,7 +21,15 @@
 
 ```
 	dependencies {
-	     implementation 'com.github.flayone.OaidProject:myOaid:1.1.0'
+	     implementation 'com.github.leeyazhou.OaidProject:myOaid:1.1.0'
+	}
+```
+
+如果需要使用 msa SDK 封装版本：
+
+```
+	dependencies {
+	     implementation 'com.github.leeyazhou.OaidProject:msaOaid:1.0.25'
 	}
 ```
 
