@@ -1,5 +1,6 @@
 # CI: 验证构建 + Maven Central 发布
-# 构建 job 在 push/PR 时验证；发布 job 在打 tag 时触发
+# build: push/PR 时验证构建
+# publish: 打 tag 自动发布，或 workflow_dispatch 手动发布
 name: CI
 
 on:
@@ -8,6 +9,17 @@ on:
     tags: ['v*']
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      module:
+        description: '发布模块（myOaid / msaOaid / both）'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - myOaid
+          - msaOaid
 
 jobs:
   build:
@@ -66,8 +78,7 @@ jobs:
 
   publish:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v5
@@ -96,7 +107,9 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 还原 GPG 私钥到 local.properties 引用的路径
+      - name: Build AAR artifacts
+        run: ./gradlew :myOaid:assembleRelease :msaOaid:assembleRelease
+
       - name: Restore GPG secret key
         env:
           GPG_SECRET_KEY: ${{ secrets.SIGNING_SECRET_KEY_BASE64 }}
@@ -104,7 +117,6 @@ jobs:
           echo "$GPG_SECRET_KEY" | base64 -d > $HOME/secring.gpg
           echo "signing.secretKeyRingFile=$HOME/secring.gpg" >> local.properties
 
-      # 写入凭据到 local.properties（maven_aar.gradle 从此读取）
       - name: Configure credentials
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_PORTAL_USERNAME }}
@@ -112,19 +124,21 @@ jobs:
           SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
-          cat >> local.properties <<EOF
-          centralPortalUsername=$CENTRAL_USERNAME
-          centralPortalPassword=$CENTRAL_PASSWORD
-          signing.keyId=$SIGNING_KEY_ID
-          signing.password=$SIGNING_PASSWORD
-          EOF
+          {
+            echo "centralPortalUsername=$CENTRAL_USERNAME"
+            echo "centralPortalPassword=$CENTRAL_PASSWORD"
+            echo "signing.keyId=$SIGNING_KEY_ID"
+            echo "signing.password=$SIGNING_PASSWORD"
+          } >> local.properties
 
-      - name: Publish myOaid to Maven Central
+      - name: Publish myOaid
+        if: github.event_name != 'workflow_dispatch' || inputs.module == 'both' || inputs.module == 'myOaid'
         run: ./gradlew :myOaid:publishReleasePublicationToCentralPortalRepository
 
-      - name: Publish msaOaid to Maven Central
+      - name: Publish msaOaid
+        if: github.event_name != 'workflow_dispatch' || inputs.module == 'both' || inputs.module == 'msaOaid'
         run: ./gradlew :msaOaid:publishReleasePublicationToCentralPortalRepository
 
-      # 上传后需在 central.sonatype.com 手动点 Publish，或调用 staging API:
-      #   curl -u <token> -X POST https://ossrh-staging-api.central.sonatype.com/service/local/staging/bulk/close
-      #   curl -u <token> -X POST https://ossrh-staging-api.central.sonatype.com/service/local/staging/bulk/promote
+      - name: Post-publish notice
+        run: |
+          echo "::notice::Artifacts uploaded to staging. Finalize at https://central.sonatype.com (Publish) or via staging API."
