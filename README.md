@@ -6,22 +6,11 @@
 
 ### 引入SDK
 
-在项目根目录的 `build.gradle` 中添加以下引入
-
-```
-	allprojects {
-		repositories {
-			...
-			maven { url 'https://jitpack.io' }
-		}
-	}
-```
-
 在APP目录的 `build.gradle` 中添加以下引入
 
 ```
 	dependencies {
-	     implementation 'com.github.leeyazhou.OaidProject:myOaid:1.1.0'
+	     implementation 'com.github.leeyazhou:myOaid:1.1.0'
 	}
 ```
 
@@ -29,7 +18,7 @@
 
 ```
 	dependencies {
-	     implementation 'com.github.leeyazhou.OaidProject:msaOaid:1.0.25'
+	     implementation 'com.github.leeyazhou:oaid-sdk:1.0.25'
 	}
 ```
 
