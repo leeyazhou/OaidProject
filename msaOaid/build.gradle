@@ -36,9 +36,10 @@ android {
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
-    // 原 fat-aar embed 已移除（fat-aar 不兼容 AGP 8）
-    // implementation 引用本地 aar，让依赖方可用其中的类
-    implementation files('libs/oaid_sdk_1.0.25.aar')
+    // AGP 8 不允许 library 模块用 implementation 引用本地 .aar 构建 AAR
+    // compileOnly: 编译时可用 oaid_sdk 的类，但不打包进 msaOaid.aar
+    // 使用者需自行引入 oaid_sdk_1.0.25.aar（app 模块已通过 files() 引用）
+    compileOnly files('libs/oaid_sdk_1.0.25.aar')
     compileOnly 'androidx.appcompat:appcompat:1.6.1'
 
     testImplementation 'junit:junit:4.13.2'
