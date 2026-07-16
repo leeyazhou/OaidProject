@@ -48,6 +48,7 @@ jreleaser {
                     url = 'https://central.sonatype.com/api/v1/publisher'
                     stagingRepository('build/staging-deploy')
                     namespace = 'com.github.leeyazhou'
+                    sign = true
                     verifyPom = false
                     applyMavenCentralRules = false
                 }
