@@ -37,8 +37,8 @@ android {
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
     // 原 fat-aar embed 已移除（fat-aar 不兼容 AGP 8）
-    // 改为 compileOnly 引用本地 aar，构建时可用但发布需通过 POM 声明依赖
-    compileOnly files('libs/oaid_sdk_1.0.25.aar')
+    // implementation 引用本地 aar，让依赖方可用其中的类
+    implementation files('libs/oaid_sdk_1.0.25.aar')
     compileOnly 'androidx.appcompat:appcompat:1.6.1'
 
     testImplementation 'junit:junit:4.13.2'
