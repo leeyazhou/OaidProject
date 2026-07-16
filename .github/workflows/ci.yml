@@ -59,7 +59,7 @@ jobs:
       - name: Build msaOaid
         run: ./gradlew :msaOaid:assembleRelease
 
-      - name: Build app (验证示例应用)
+      - name: Build app
         run: ./gradlew :app:assembleDebug
 
       - name: Upload myOaid AAR
@@ -79,6 +79,14 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+
+    env:
+      JRELEASER_MAVENCENTRAL_SONATYPE_USERNAME: ${{ secrets.CENTRAL_PORTAL_USERNAME }}
+      JRELEASER_MAVENCENTRAL_SONATYPE_PASSWORD: ${{ secrets.CENTRAL_PORTAL_PASSWORD }}
+      JRELEASER_SIGNING_PGP_PUBLIC_KEY: ${{ secrets.SIGNING_PUBLIC_KEY_BASE64 }}
+      JRELEASER_SIGNING_PGP_SECRET_KEY: ${{ secrets.SIGNING_SECRET_KEY_BASE64 }}
+      JRELEASER_SIGNING_PGP_PASSPHRASE: ${{ secrets.SIGNING_PASSWORD }}
+      JRELEASER_GITHUB_TOKEN: dummy
 
     steps:
       - uses: actions/checkout@v5
@@ -110,35 +118,17 @@ jobs:
       - name: Build AAR artifacts
         run: ./gradlew :myOaid:assembleRelease :msaOaid:assembleRelease
 
-      - name: Restore GPG secret key
-        env:
-          GPG_SECRET_KEY: ${{ secrets.SIGNING_SECRET_KEY_BASE64 }}
-        run: |
-          echo "$GPG_SECRET_KEY" | base64 -d > $HOME/secring.gpg
-          echo "signing.secretKeyRingFile=$HOME/secring.gpg" >> local.properties
-
-      - name: Configure credentials
-        env:
-          CENTRAL_USERNAME: ${{ secrets.CENTRAL_PORTAL_USERNAME }}
-          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PORTAL_PASSWORD }}
-          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
-          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
-        run: |
-          {
-            echo "centralPortalUsername=$CENTRAL_USERNAME"
-            echo "centralPortalPassword=$CENTRAL_PASSWORD"
-            echo "signing.keyId=$SIGNING_KEY_ID"
-            echo "signing.password=$SIGNING_PASSWORD"
-          } >> local.properties
-
-      - name: Publish myOaid
+      - name: Publish myOaid to staging
         if: github.event_name != 'workflow_dispatch' || inputs.module == 'both' || inputs.module == 'myOaid'
-        run: ./gradlew :myOaid:publishReleasePublicationToCentralPortalRepository
+        run: ./gradlew :myOaid:publishReleasePublicationToStagingRepository
 
-      - name: Publish msaOaid
+      - name: Publish msaOaid to staging
         if: github.event_name != 'workflow_dispatch' || inputs.module == 'both' || inputs.module == 'msaOaid'
-        run: ./gradlew :msaOaid:publishReleasePublicationToCentralPortalRepository
+        run: ./gradlew :msaOaid:publishReleasePublicationToStagingRepository
+
+      - name: Deploy to Maven Central
+        run: ./gradlew jreleaserDeploy
 
       - name: Post-publish notice
         run: |
-          echo "::notice::Artifacts uploaded to staging. Finalize at https://central.sonatype.com (Publish) or via staging API."
+          echo "::notice::Artifacts deployed to Maven Central via JReleaser."
